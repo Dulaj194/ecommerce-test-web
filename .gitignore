@@ -1,0 +1,5 @@
+backend.log
+frontend.log
+backend/uploads/
+frontend/.next/
+frontend/node_modules/
