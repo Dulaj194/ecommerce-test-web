@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { LoadingState } from "@/components/LoadingState";
 import { MainNav } from "@/components/MainNav";
 import { apiFetch, resolveImageUrl } from "@/lib/api";
 import { useAuthGuard } from "@/lib/useAuthGuard";
+import { usePolling } from "@/lib/usePolling";
 import type { Order } from "@/lib/types";
 
 export default function OrdersPage() {
@@ -15,35 +16,36 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadOrders = useCallback(
+    async (showLoader: boolean) => {
+      if (showLoader) {
+        setLoading(true);
+      }
+
+      try {
+        const response = await apiFetch<Order[]>("/api/orders/me", {}, true);
+        setError(null);
+        setOrders(response);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Unable to load orders.");
+      } finally {
+        if (showLoader) {
+          setLoading(false);
+        }
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     if (guardLoading || !sessionId) {
       return;
     }
 
-    let alive = true;
+    void loadOrders(true);
+  }, [guardLoading, loadOrders, sessionId]);
 
-    apiFetch<Order[]>("/api/orders/me", {}, true)
-      .then((response) => {
-        if (alive) {
-          setError(null);
-          setOrders(response);
-        }
-      })
-      .catch((err: unknown) => {
-        if (alive) {
-          setError(err instanceof Error ? err.message : "Unable to load orders.");
-        }
-      })
-      .finally(() => {
-        if (alive) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [guardLoading, sessionId]);
+  usePolling(() => loadOrders(false), 3000, Boolean(sessionId));
 
   if (guardLoading || !session) {
     return (

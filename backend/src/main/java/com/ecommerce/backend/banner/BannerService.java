@@ -2,6 +2,8 @@ package com.ecommerce.backend.banner;
 
 import java.util.List;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -10,20 +12,21 @@ import com.ecommerce.backend.banner.dto.BannerResponse;
 import com.ecommerce.backend.banner.dto.UpdateBannerRequest;
 import com.ecommerce.backend.common.BadRequestException;
 import com.ecommerce.backend.common.NotFoundException;
-import com.ecommerce.backend.storage.FileStorageService;
+import com.ecommerce.backend.storage.StorageService;
 
 @Service
 public class BannerService {
 
     private final BannerRepository bannerRepository;
-    private final FileStorageService fileStorageService;
+    private final StorageService storageService;
 
-    public BannerService(BannerRepository bannerRepository, FileStorageService fileStorageService) {
+    public BannerService(BannerRepository bannerRepository, StorageService storageService) {
         this.bannerRepository = bannerRepository;
-        this.fileStorageService = fileStorageService;
+        this.storageService = storageService;
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "public-banners")
     public List<BannerResponse> listPublic() {
         return bannerRepository.findByActiveTrueOrderBySortOrderAscIdAsc()
                 .stream()
@@ -40,6 +43,7 @@ public class BannerService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "public-banners", allEntries = true)
     public BannerResponse create(String title, Integer sortOrder, Boolean active, MultipartFile image) {
         if (title == null || title.isBlank()) {
             throw new BadRequestException("Banner title is required.");
@@ -49,11 +53,12 @@ public class BannerService {
         banner.setTitle(title.trim());
         banner.setSortOrder(sortOrder == null ? 0 : sortOrder);
         banner.setActive(active == null || active);
-        banner.setImageUrl(fileStorageService.storeBanner(image));
+        banner.setImageUrl(storageService.storeBanner(image));
         return BannerResponse.from(bannerRepository.save(banner));
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "public-banners", allEntries = true)
     public BannerResponse update(Long id, UpdateBannerRequest request) {
         Banner banner = findBanner(id);
         banner.setTitle(request.title().trim());
@@ -63,10 +68,11 @@ public class BannerService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "public-banners", allEntries = true)
     public void delete(Long id) {
         Banner banner = findBanner(id);
         bannerRepository.delete(banner);
-        fileStorageService.deleteByPublicPath(banner.getImageUrl());
+        storageService.deleteByPublicPath(banner.getImageUrl());
     }
 
     private Banner findBanner(Long id) {

@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { LoadingState } from "@/components/LoadingState";
 import { MainNav } from "@/components/MainNav";
 import { apiFetch, resolveImageUrl } from "@/lib/api";
 import { getSession } from "@/lib/session";
+import { usePolling } from "@/lib/usePolling";
 import type { PagedResponse, Product } from "@/lib/types";
 
 export default function ProductsPage() {
@@ -20,43 +21,44 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  useEffect(() => {
-    let alive = true;
+  const loadProducts = useCallback(
+    async (showLoader: boolean) => {
+      if (showLoader) {
+        setLoading(true);
+      }
+      setError(null);
+      let success = false;
 
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("size", "12");
-    if (search.trim()) {
-      params.set("search", search.trim());
-    }
+      try {
+        const params = new URLSearchParams();
+        params.set("page", String(page));
+        params.set("size", "12");
+        if (search.trim()) {
+          params.set("search", search.trim());
+        }
 
-    apiFetch<PagedResponse<Product>>(`/api/products?${params.toString()}`)
-      .then((response) => {
-        if (alive) {
-          setError(null);
-          setProducts(response);
-        }
-      })
-      .catch((err: unknown) => {
-        if (alive) {
-          setError(err instanceof Error ? err.message : "Unable to load products.");
-        }
-      })
-      .finally(() => {
-        if (alive) {
+        const response = await apiFetch<PagedResponse<Product>>(`/api/products?${params.toString()}`);
+        setProducts(response);
+        success = true;
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Unable to load products.");
+      } finally {
+        if (showLoader || success) {
           setLoading(false);
         }
-      });
+      }
+    },
+    [page, search]
+  );
 
-    return () => {
-      alive = false;
-    };
-  }, [page, search]);
+  useEffect(() => {
+    void loadProducts(true);
+  }, [loadProducts]);
+
+  usePolling(() => loadProducts(false), 4000, true);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setLoading(true);
-    setError(null);
     setFeedback(null);
     setPage(0);
     setSearch(query);

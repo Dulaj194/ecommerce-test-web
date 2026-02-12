@@ -3,7 +3,7 @@
 Monorepo with:
 
 - `frontend`: Next.js + TypeScript + Tailwind CSS
-- `backend`: Spring Boot + MySQL + Flyway + JWT
+- `backend`: Spring Boot + MySQL + Flyway + JWT + Redis cache/rate-limit + pluggable storage (Local/S3)
 
 ## Features
 
@@ -26,7 +26,8 @@ Created automatically at backend startup if not already present.
 ## Run Backend
 
 1. Create MySQL database user and update env vars if needed.
-2. From `backend`:
+2. Start Redis (required for cache + rate-limit/session store).
+3. From `backend`:
 
 ```powershell
 mvn spring-boot:run
@@ -39,6 +40,17 @@ You can override with environment variables:
 - `DB_PASSWORD`
 - `JWT_SECRET`
 - `CORS_ALLOWED_ORIGINS`
+- `REDIS_HOST`
+- `REDIS_PORT`
+- `REDIS_PASSWORD`
+- `STORAGE_PROVIDER` (`local` or `s3`)
+- `AWS_REGION`
+- `AWS_S3_BUCKET`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_S3_ENDPOINT` (optional, for MinIO/custom endpoint)
+- `AWS_S3_PUBLIC_BASE_URL` (optional CDN/public URL)
+- `AWS_S3_KEY_PREFIX`
 
 ## Run Frontend
 
@@ -54,3 +66,12 @@ App URLs:
 
 - Frontend: `http://localhost:3000`
 - Backend: `http://localhost:8080`
+
+## Production Notes
+
+- Architecture is frozen to `Next.js + Spring Boot + MySQL + Redis + S3`.
+- Public product/banner APIs are Redis-cached for faster responses.
+- Auth, cart, and checkout endpoints are Redis rate-limited.
+- Banner image storage is provider-based:
+  - `local`: files served under `/uploads/**`
+  - `s3`: files uploaded to S3 and returned as public URLs

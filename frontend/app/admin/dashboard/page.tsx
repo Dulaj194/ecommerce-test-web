@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { LoadingState } from "@/components/LoadingState";
 import { MainNav } from "@/components/MainNav";
 import { apiFetch } from "@/lib/api";
 import { useAuthGuard } from "@/lib/useAuthGuard";
+import { usePolling } from "@/lib/usePolling";
 import type { Banner, Order, PagedResponse, Product } from "@/lib/types";
 
 type Snapshot = {
@@ -22,41 +23,43 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadSnapshot = useCallback(
+    async (showLoader: boolean) => {
+      if (showLoader) {
+        setLoading(true);
+      }
+      try {
+        const [products, orders, banners] = await Promise.all([
+          apiFetch<PagedResponse<Product>>("/api/admin/products?page=0&size=1", {}, true),
+          apiFetch<Order[]>("/api/admin/orders", {}, true),
+          apiFetch<Banner[]>("/api/admin/banners", {}, true),
+        ]);
+        setError(null);
+        setSnapshot({
+          products: products.totalElements,
+          orders: orders.length,
+          banners: banners.length,
+        });
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Unable to load admin summary.");
+      } finally {
+        if (showLoader) {
+          setLoading(false);
+        }
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     if (guardLoading || !sessionId) {
       return;
     }
 
-    let alive = true;
-    Promise.all([
-      apiFetch<PagedResponse<Product>>("/api/admin/products?page=0&size=1", {}, true),
-      apiFetch<Order[]>("/api/admin/orders", {}, true),
-      apiFetch<Banner[]>("/api/admin/banners", {}, true),
-    ])
-      .then(([products, orders, banners]) => {
-        if (alive) {
-          setSnapshot({
-            products: products.totalElements,
-            orders: orders.length,
-            banners: banners.length,
-          });
-        }
-      })
-      .catch((err: unknown) => {
-        if (alive) {
-          setError(err instanceof Error ? err.message : "Unable to load admin summary.");
-        }
-      })
-      .finally(() => {
-        if (alive) {
-          setLoading(false);
-        }
-      });
+    void loadSnapshot(true);
+  }, [guardLoading, loadSnapshot, sessionId]);
 
-    return () => {
-      alive = false;
-    };
-  }, [guardLoading, sessionId]);
+  usePolling(() => loadSnapshot(false), 3000, Boolean(sessionId));
 
   if (guardLoading || !session) {
     return (

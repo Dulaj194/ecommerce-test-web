@@ -3,6 +3,8 @@ package com.ecommerce.backend.product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "public-products", key = "{#search, #page, #size}")
     public PagedResponse<ProductResponse> listPublic(String search, int page, int size) {
         Page<Product> products = productRepository.searchActive(
                 normalizeSearch(search),
@@ -29,6 +32,7 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "public-product-by-id", key = "#id")
     public ProductResponse getPublicProduct(Long id) {
         Product product = productRepository.findById(id)
                 .filter(Product::isActive)
@@ -50,6 +54,7 @@ public class ProductService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"public-products", "public-product-by-id"}, allEntries = true)
     public ProductResponse createProduct(UpsertProductRequest request) {
         Product product = new Product();
         apply(product, request);
@@ -57,6 +62,7 @@ public class ProductService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"public-products", "public-product-by-id"}, allEntries = true)
     public ProductResponse updateProduct(Long id, UpsertProductRequest request) {
         Product product = findProduct(id);
         apply(product, request);
@@ -64,6 +70,7 @@ public class ProductService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"public-products", "public-product-by-id"}, allEntries = true)
     public void deleteProduct(Long id) {
         Product product = findProduct(id);
         product.setActive(false);

@@ -1,40 +1,50 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { LoadingState } from "@/components/LoadingState";
 import { MainNav } from "@/components/MainNav";
 import { apiFetch, resolveImageUrl } from "@/lib/api";
 import { useAuthGuard } from "@/lib/useAuthGuard";
+import { usePolling } from "@/lib/usePolling";
 import type { Order } from "@/lib/types";
 
 const statuses = ["PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"] as const;
 
 export default function AdminOrdersPage() {
   const { loading: guardLoading, session } = useAuthGuard("ROLE_ADMIN");
+  const sessionId = session?.userId;
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadOrders = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await apiFetch<Order[]>("/api/admin/orders", {}, true);
-      setOrders(response);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unable to load orders.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadOrders = useCallback(
+    async (showLoader: boolean) => {
+      if (showLoader) {
+        setLoading(true);
+      }
+      try {
+        const response = await apiFetch<Order[]>("/api/admin/orders", {}, true);
+        setError(null);
+        setOrders(response);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Unable to load orders.");
+      } finally {
+        if (showLoader) {
+          setLoading(false);
+        }
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    if (!guardLoading && session) {
-      loadOrders();
+    if (!guardLoading && sessionId) {
+      void loadOrders(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guardLoading, session?.userId]);
+  }, [guardLoading, loadOrders, sessionId]);
+
+  usePolling(() => loadOrders(false), 2500, Boolean(sessionId));
 
   const changeStatus = async (orderId: number, status: string) => {
     try {
@@ -42,7 +52,7 @@ export default function AdminOrdersPage() {
         method: "PUT",
         body: JSON.stringify({ status }),
       }, true);
-      await loadOrders();
+      await loadOrders(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unable to update order status.");
     }

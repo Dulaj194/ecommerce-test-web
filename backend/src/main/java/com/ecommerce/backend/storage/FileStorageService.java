@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,7 +19,8 @@ import com.ecommerce.backend.common.BadRequestException;
 import jakarta.annotation.PostConstruct;
 
 @Service
-public class FileStorageService {
+@ConditionalOnProperty(name = "app.storage.provider", havingValue = "local", matchIfMissing = true)
+public class FileStorageService implements StorageService {
 
     private final Path rootPath;
     private Path bannersPath;
@@ -33,6 +35,7 @@ public class FileStorageService {
         Files.createDirectories(bannersPath);
     }
 
+    @Override
     public String storeBanner(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("Banner image file is required.");
@@ -63,6 +66,7 @@ public class FileStorageService {
         return "/uploads/banners/" + fileName;
     }
 
+    @Override
     public void deleteByPublicPath(String publicPath) {
         if (publicPath == null || publicPath.isBlank() || !publicPath.startsWith("/uploads/banners/")) {
             return;

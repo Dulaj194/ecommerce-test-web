@@ -1,0 +1,14 @@
+{
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.maven.enabled": true,
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/target/**"
+  ],
+  "java.project.resourceFilters": [
+    "node_modules",
+    ".next",
+    "target"
+  ]
+}

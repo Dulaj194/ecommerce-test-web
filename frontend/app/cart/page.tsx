@@ -1,42 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { LoadingState } from "@/components/LoadingState";
 import { MainNav } from "@/components/MainNav";
 import { apiFetch, resolveImageUrl } from "@/lib/api";
 import { useAuthGuard } from "@/lib/useAuthGuard";
+import { usePolling } from "@/lib/usePolling";
 import type { CartResponse, Order } from "@/lib/types";
 
 export default function CartPage() {
   const router = useRouter();
   const { loading: guardLoading, session } = useAuthGuard();
+  const sessionId = session?.userId;
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [shippingAddress, setShippingAddress] = useState("221B Baker Street, London");
   const [error, setError] = useState<string | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
 
-  const loadCart = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await apiFetch<CartResponse>("/api/cart", {}, true);
-      setCart(response);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unable to load cart.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadCart = useCallback(
+    async (showLoader: boolean) => {
+      if (showLoader) {
+        setLoading(true);
+      }
+      try {
+        const response = await apiFetch<CartResponse>("/api/cart", {}, true);
+        setError(null);
+        setCart(response);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Unable to load cart.");
+      } finally {
+        if (showLoader) {
+          setLoading(false);
+        }
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    if (!guardLoading && session) {
-      loadCart();
+    if (!guardLoading && sessionId) {
+      void loadCart(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guardLoading, session?.userId]);
+  }, [guardLoading, loadCart, sessionId]);
+
+  usePolling(() => loadCart(false), 2000, Boolean(sessionId));
 
   const updateQuantity = async (itemId: number, quantity: number) => {
     try {
@@ -54,9 +64,19 @@ export default function CartPage() {
     }
   };
 
-  const removeItem = async (itemId: number) => {
+  const removeItem = async (itemId: number, currentQuantity: number) => {
     try {
-      const response = await apiFetch<CartResponse>(`/api/cart/items/${itemId}`, { method: "DELETE" }, true);
+      const response =
+        currentQuantity > 1
+          ? await apiFetch<CartResponse>(
+              `/api/cart/items/${itemId}`,
+              {
+                method: "PUT",
+                body: JSON.stringify({ quantity: currentQuantity - 1 }),
+              },
+              true
+            )
+          : await apiFetch<CartResponse>(`/api/cart/items/${itemId}`, { method: "DELETE" }, true);
       setCart(response);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to remove item.");
@@ -143,10 +163,10 @@ export default function CartPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => removeItem(item.id)}
+                        onClick={() => removeItem(item.id, item.quantity)}
                         className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500"
                       >
-                        Remove
+                        Remove 1
                       </button>
                     </div>
                   </article>

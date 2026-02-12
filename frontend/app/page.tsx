@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { MainNav } from "@/components/MainNav";
 import { apiFetch, resolveImageUrl } from "@/lib/api";
 import { getSession } from "@/lib/session";
 import { useHydrated } from "@/lib/useHydrated";
+import { usePolling } from "@/lib/usePolling";
 import type { Banner, PagedResponse, Product } from "@/lib/types";
 
 export default function HomePage() {
@@ -19,6 +20,21 @@ export default function HomePage() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const loadHomeData = useCallback(async () => {
+    try {
+      const [bannerResponse, productResponse] = await Promise.all([
+        apiFetch<Banner[]>("/api/banners"),
+        apiFetch<PagedResponse<Product>>("/api/products?page=0&size=8"),
+      ]);
+      setError(null);
+      setBanners(bannerResponse);
+      setFeaturedProducts(productResponse.content);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unable to load home page data.";
+      setError(message);
+    }
+  }, []);
+
   useEffect(() => {
     let alive = true;
     Promise.all([
@@ -29,6 +45,7 @@ export default function HomePage() {
         if (!alive) {
           return;
         }
+        setError(null);
         setBanners(bannerResponse);
         setFeaturedProducts(productResponse.content);
       })
@@ -44,6 +61,8 @@ export default function HomePage() {
       alive = false;
     };
   }, []);
+
+  usePolling(loadHomeData, 4000, true);
 
   useEffect(() => {
     if (banners.length <= 1) {

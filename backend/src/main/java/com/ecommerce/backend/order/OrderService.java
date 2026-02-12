@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +40,7 @@ public class OrderService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = {"public-products", "public-product-by-id"}, allEntries = true)
     public OrderResponse checkout(Long userId, CheckoutRequest request) {
         if (request.shippingAddress() == null || request.shippingAddress().isBlank()) {
             throw new BadRequestException("Shipping address is required.");

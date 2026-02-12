@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { clearSession, getSession } from "@/lib/session";
 import { useHydrated } from "@/lib/useHydrated";
+import { usePolling } from "@/lib/usePolling";
 import type { CartResponse } from "@/lib/types";
 
 type MainNavProps = {
@@ -20,31 +21,21 @@ export function MainNav({ compact = false }: MainNavProps) {
   const sessionUserId = session?.userId;
   const [cartCount, setCartCount] = useState(0);
 
-  useEffect(() => {
-    let active = true;
-
+  const loadCartCount = useCallback(async () => {
     if (!sessionUserId) {
-      return () => {
-        active = false;
-      };
+      setCartCount(0);
+      return;
     }
 
-    apiFetch<CartResponse>("/api/cart", {}, true)
-      .then((cart) => {
-        if (active) {
-          setCartCount(cart.totalItems);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setCartCount(0);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
+    try {
+      const cart = await apiFetch<CartResponse>("/api/cart", {}, true);
+      setCartCount(cart.totalItems);
+    } catch {
+      setCartCount(0);
+    }
   }, [sessionUserId]);
+
+  usePolling(loadCartCount, 1500, Boolean(sessionUserId), true);
 
   const handleLogout = () => {
     clearSession();

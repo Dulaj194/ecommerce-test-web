@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { LoadingState } from "@/components/LoadingState";
 import { MainNav } from "@/components/MainNav";
 import { apiFetch, resolveImageUrl } from "@/lib/api";
 import { useAuthGuard } from "@/lib/useAuthGuard";
+import { usePolling } from "@/lib/usePolling";
 import type { PagedResponse, Product } from "@/lib/types";
 
 type ProductForm = {
@@ -28,6 +29,7 @@ const defaultForm: ProductForm = {
 
 export default function AdminProductsPage() {
   const { loading: guardLoading, session } = useAuthGuard("ROLE_ADMIN");
+  const sessionId = session?.userId;
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState<ProductForm>(defaultForm);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -35,25 +37,33 @@ export default function AdminProductsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadProducts = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await apiFetch<PagedResponse<Product>>("/api/admin/products?page=0&size=200", {}, true);
-      setProducts(response.content);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unable to load products.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadProducts = useCallback(
+    async (showLoader: boolean) => {
+      if (showLoader) {
+        setLoading(true);
+      }
+      try {
+        const response = await apiFetch<PagedResponse<Product>>("/api/admin/products?page=0&size=200", {}, true);
+        setError(null);
+        setProducts(response.content);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Unable to load products.");
+      } finally {
+        if (showLoader) {
+          setLoading(false);
+        }
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    if (!guardLoading && session) {
-      loadProducts();
+    if (!guardLoading && sessionId) {
+      void loadProducts(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guardLoading, session?.userId]);
+  }, [guardLoading, loadProducts, sessionId]);
+
+  usePolling(() => loadProducts(false), 5000, Boolean(sessionId) && !submitting && editingId === null);
 
   const submitForm = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -83,7 +93,7 @@ export default function AdminProductsPage() {
       }
       setForm(defaultForm);
       setEditingId(null);
-      await loadProducts();
+      await loadProducts(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unable to save product.");
     } finally {
@@ -106,7 +116,7 @@ export default function AdminProductsPage() {
   const deleteProduct = async (id: number) => {
     try {
       await apiFetch(`/api/admin/products/${id}`, { method: "DELETE" }, true);
-      await loadProducts();
+      await loadProducts(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unable to delete product.");
     }
