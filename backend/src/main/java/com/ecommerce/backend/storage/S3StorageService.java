@@ -43,8 +43,17 @@ public class S3StorageService implements StorageService {
 
     @Override
     public String storeBanner(MultipartFile file) {
+        return storeImage(file, "banners");
+    }
+
+    @Override
+    public String storeProductImage(MultipartFile file) {
+        return storeImage(file, "products");
+    }
+
+    private String storeImage(MultipartFile file, String folder) {
         if (file == null || file.isEmpty()) {
-            throw new BadRequestException("Banner image file is required.");
+            throw new BadRequestException("Image file is required.");
         }
         if (!Objects.requireNonNullElse(file.getContentType(), "").startsWith("image/")) {
             throw new BadRequestException("Only image files are allowed.");
@@ -57,7 +66,7 @@ public class S3StorageService implements StorageService {
             extension = fileName.substring(dot).toLowerCase(Locale.ROOT);
         }
 
-        String key = normalizedPrefix() + "banners/" + UUID.randomUUID() + extension;
+        String key = normalizedPrefix() + folder + "/" + UUID.randomUUID() + extension;
         try {
             PutObjectRequest request = PutObjectRequest.builder()
                     .bucket(bucket)
@@ -66,7 +75,7 @@ public class S3StorageService implements StorageService {
                     .build();
             s3Client.putObject(request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
         } catch (Exception ex) {
-            throw new BadRequestException("Unable to store banner image.");
+            throw new BadRequestException("Unable to store image.");
         }
 
         return buildPublicUrl(key);

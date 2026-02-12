@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { LoadingState } from "@/components/LoadingState";
 import { MainNav } from "@/components/MainNav";
 import { apiFetch, resolveImageUrl } from "@/lib/api";
+import { emitCartUpdated } from "@/lib/cartSync";
 import { useAuthGuard } from "@/lib/useAuthGuard";
 import { usePolling } from "@/lib/usePolling";
 import type { CartResponse, Order } from "@/lib/types";
@@ -15,6 +16,7 @@ export default function CartPage() {
   const { loading: guardLoading, session } = useAuthGuard();
   const sessionId = session?.userId;
   const [cart, setCart] = useState<CartResponse | null>(null);
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [shippingAddress, setShippingAddress] = useState("221B Baker Street, London");
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +31,7 @@ export default function CartPage() {
         const response = await apiFetch<CartResponse>("/api/cart", {}, true);
         setError(null);
         setCart(response);
+        emitCartUpdated(response.totalItems);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Unable to load cart.");
       } finally {
@@ -48,17 +51,31 @@ export default function CartPage() {
 
   usePolling(() => loadCart(false), 2000, Boolean(sessionId));
 
+  useEffect(() => {
+    if (!cart) {
+      return;
+    }
+    const nextDrafts: Record<number, string> = {};
+    cart.items.forEach((item) => {
+      nextDrafts[item.id] = String(item.quantity);
+    });
+    setQuantityDrafts(nextDrafts);
+  }, [cart]);
+
   const updateQuantity = async (itemId: number, quantity: number) => {
+    const safeQuantity = Math.max(1, quantity);
+    setQuantityDrafts((prev) => ({ ...prev, [itemId]: String(safeQuantity) }));
     try {
       const response = await apiFetch<CartResponse>(
         `/api/cart/items/${itemId}`,
         {
           method: "PUT",
-          body: JSON.stringify({ quantity }),
+          body: JSON.stringify({ quantity: safeQuantity }),
         },
         true
       );
       setCart(response);
+      emitCartUpdated(response.totalItems);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to update quantity.");
     }
@@ -78,6 +95,7 @@ export default function CartPage() {
             )
           : await apiFetch<CartResponse>(`/api/cart/items/${itemId}`, { method: "DELETE" }, true);
       setCart(response);
+      emitCartUpdated(response.totalItems);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to remove item.");
     }
@@ -101,6 +119,7 @@ export default function CartPage() {
         },
         true
       );
+      emitCartUpdated(0);
       router.push("/orders");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Checkout failed.");
@@ -157,9 +176,15 @@ export default function CartPage() {
                       <input
                         type="number"
                         min={1}
-                        defaultValue={item.quantity}
+                        value={quantityDrafts[item.id] ?? String(item.quantity)}
                         className="w-20 rounded-md border border-slate-300 px-2 py-1"
-                        onBlur={(e) => updateQuantity(item.id, Math.max(1, Number(e.target.value)))}
+                        onChange={(e) =>
+                          setQuantityDrafts((prev) => ({
+                            ...prev,
+                            [item.id]: e.target.value,
+                          }))
+                        }
+                        onBlur={(e) => updateQuantity(item.id, Number(e.target.value))}
                       />
                       <button
                         type="button"

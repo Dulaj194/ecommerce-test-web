@@ -7,9 +7,10 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { LoadingState } from "@/components/LoadingState";
 import { MainNav } from "@/components/MainNav";
 import { apiFetch, resolveImageUrl } from "@/lib/api";
+import { emitCartUpdated } from "@/lib/cartSync";
 import { getSession } from "@/lib/session";
 import { usePolling } from "@/lib/usePolling";
-import type { PagedResponse, Product } from "@/lib/types";
+import type { CartResponse, PagedResponse, Product } from "@/lib/types";
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -72,10 +73,15 @@ export default function ProductsPage() {
     }
 
     try {
-      await apiFetch("/api/cart/items", {
-        method: "POST",
-        body: JSON.stringify({ productId, quantity: 1 }),
-      }, true);
+      const response = await apiFetch<CartResponse>(
+        "/api/cart/items",
+        {
+          method: "POST",
+          body: JSON.stringify({ productId, quantity: 1 }),
+        },
+        true
+      );
+      emitCartUpdated(response.totalItems);
       setFeedback("Product added to cart.");
     } catch (err: unknown) {
       setFeedback(err instanceof Error ? err.message : "Failed to add product.");
@@ -118,20 +124,32 @@ export default function ProductsPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {products.content.map((product) => (
                   <article key={product.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                    <img src={resolveImageUrl(product.imageUrl)} alt={product.name} className="h-44 w-full object-cover" />
+                    <img
+                      src={resolveImageUrl(product.imageUrls?.[0] ?? product.imageUrl)}
+                      alt={product.name}
+                      className="h-44 w-full object-cover"
+                    />
                     <div className="space-y-2 p-4">
                       <h2 className="text-base font-semibold text-slate-900">{product.name}</h2>
                       <p className="text-sm text-slate-600">{product.description}</p>
                       <p className="text-sm text-slate-500">Stock: {product.stock}</p>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-lg font-semibold text-teal-700">${Number(product.price).toFixed(2)}</span>
-                        <button
-                          type="button"
-                          onClick={() => addToCart(product.id)}
-                          className="rounded-md bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-400"
-                        >
-                          Add to Cart
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/products/${product.id}`}
+                            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            View
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => addToCart(product.id)}
+                            className="rounded-md bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-400"
+                          >
+                            Add to Cart
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </article>

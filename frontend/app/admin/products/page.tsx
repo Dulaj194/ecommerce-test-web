@@ -32,6 +32,7 @@ export default function AdminProductsPage() {
   const sessionId = session?.userId;
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState<ProductForm>(defaultForm);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -70,28 +71,60 @@ export default function AdminProductsPage() {
     setSubmitting(true);
     setError(null);
 
-    const payload = {
-      name: form.name,
-      description: form.description,
-      price: Number(form.price),
-      stock: Number(form.stock),
-      imageUrl: form.imageUrl,
-      active: form.active,
-    };
+    const parsedPrice = Number.parseFloat(form.price);
+    const parsedStock = Number.parseInt(form.stock, 10);
+
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0.01) {
+      setError("Price must be a valid number greater than 0.00.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!Number.isInteger(parsedStock) || parsedStock < 0) {
+      setError("Stock must be a valid whole number 0 or greater.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (imageFiles.length > 5) {
+      setError("Maximum 5 product images are allowed.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!editingId && imageFiles.length === 0 && !form.imageUrl.trim()) {
+      setError("Upload at least one product image or provide an image URL.");
+      setSubmitting(false);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("name", form.name);
+    formData.append("description", form.description);
+    formData.append("price", String(parsedPrice));
+    formData.append("stock", String(parsedStock));
+    formData.append("active", String(form.active));
+    if (form.imageUrl.trim()) {
+      formData.append("imageUrl", form.imageUrl.trim());
+    }
+    imageFiles.forEach((file) => {
+      formData.append("images", file);
+    });
 
     try {
       if (editingId) {
         await apiFetch(`/api/admin/products/${editingId}`, {
           method: "PUT",
-          body: JSON.stringify(payload),
+          body: formData,
         }, true);
       } else {
         await apiFetch("/api/admin/products", {
           method: "POST",
-          body: JSON.stringify(payload),
+          body: formData,
         }, true);
       }
       setForm(defaultForm);
+      setImageFiles([]);
       setEditingId(null);
       await loadProducts(false);
     } catch (err: unknown) {
@@ -103,14 +136,20 @@ export default function AdminProductsPage() {
 
   const editProduct = (product: Product) => {
     setEditingId(product.id);
+    const imageUrls = (product.imageUrls ?? []).length > 0
+      ? product.imageUrls
+      : product.imageUrl
+        ? [product.imageUrl]
+        : [];
     setForm({
       name: product.name,
       description: product.description ?? "",
       price: String(product.price),
       stock: String(product.stock),
-      imageUrl: product.imageUrl ?? "",
+      imageUrl: imageUrls[0] ?? "",
       active: product.active,
     });
+    setImageFiles([]);
   };
 
   const deleteProduct = async (id: number) => {
@@ -155,7 +194,7 @@ export default function AdminProductsPage() {
             />
             <input
               type="text"
-              placeholder="Image URL (/uploads/... or full URL)"
+              placeholder="Primary image URL (optional)"
               className="rounded-lg border border-slate-300 px-3 py-2"
               value={form.imageUrl}
               onChange={(e) => setForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
@@ -186,6 +225,31 @@ export default function AdminProductsPage() {
               value={form.description}
               onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
             />
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="productImages">
+                Product Images (max 5)
+              </label>
+              <input
+                id="productImages"
+                type="file"
+                multiple
+                accept="image/*"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 5) {
+                    setError("Maximum 5 product images are allowed.");
+                    setImageFiles(files.slice(0, 5));
+                    return;
+                  }
+                  setError(null);
+                  setImageFiles(files);
+                }}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Upload between 1 and 5 images. On edit, uploading new files replaces current product photos.
+              </p>
+            </div>
             <label className="flex items-center gap-2 text-sm text-slate-700 md:col-span-2">
               <input
                 type="checkbox"
@@ -194,6 +258,11 @@ export default function AdminProductsPage() {
               />
               Active
             </label>
+            {imageFiles.length > 0 && (
+              <p className="text-xs text-slate-600 md:col-span-2">
+                Selected files: {imageFiles.map((file) => file.name).join(", ")}
+              </p>
+            )}
             <div className="flex gap-2 md:col-span-2">
               <button
                 type="submit"
@@ -208,6 +277,7 @@ export default function AdminProductsPage() {
                   onClick={() => {
                     setEditingId(null);
                     setForm(defaultForm);
+                    setImageFiles([]);
                   }}
                   className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
                 >
@@ -221,37 +291,62 @@ export default function AdminProductsPage() {
 
           {!loading && (
             <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-              {products.map((product) => (
-                <article key={product.id} className="overflow-hidden rounded-xl border border-slate-200">
-                  <img src={resolveImageUrl(product.imageUrl)} alt={product.name} className="h-40 w-full object-cover" />
-                  <div className="space-y-2 p-4">
-                    <div className="flex items-center justify-between">
-                      <h2 className="font-semibold text-slate-900">{product.name}</h2>
-                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${product.active ? "bg-teal-50 text-teal-700" : "bg-slate-100 text-slate-500"}`}>
-                        {product.active ? "Active" : "Inactive"}
-                      </span>
+              {products.map((product) => {
+                const photos = (product.imageUrls ?? []).length > 0
+                  ? product.imageUrls
+                  : product.imageUrl
+                    ? [product.imageUrl]
+                    : [];
+
+                return (
+                  <article key={product.id} className="overflow-hidden rounded-xl border border-slate-200">
+                    <img
+                      src={resolveImageUrl(photos[0])}
+                      alt={product.name}
+                      className="h-40 w-full object-cover"
+                    />
+                    <div className="space-y-2 p-4">
+                      <div className="flex items-center justify-between">
+                        <h2 className="font-semibold text-slate-900">{product.name}</h2>
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${product.active ? "bg-teal-50 text-teal-700" : "bg-slate-100 text-slate-500"}`}>
+                          {product.active ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-600">${Number(product.price).toFixed(2)} | Stock: {product.stock}</p>
+                      <p className="text-sm text-slate-500">Photos: {photos.length}/5</p>
+                      {photos.length > 1 && (
+                        <div className="flex flex-wrap gap-2">
+                          {photos.slice(0, 5).map((url, index) => (
+                            <img
+                              key={`${product.id}-${index}`}
+                              src={resolveImageUrl(url)}
+                              alt={`${product.name} ${index + 1}`}
+                              className="h-12 w-12 rounded-md border border-slate-200 object-cover"
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-sm text-slate-600">{product.description}</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => editProduct(product)}
+                          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteProduct(product.id)}
+                          className="rounded-md bg-rose-600 px-3 py-1.5 text-sm text-white hover:bg-rose-500"
+                        >
+                          Deactivate
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-sm text-slate-600">${Number(product.price).toFixed(2)} | Stock: {product.stock}</p>
-                    <p className="text-sm text-slate-600">{product.description}</p>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => editProduct(product)}
-                        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteProduct(product.id)}
-                        className="rounded-md bg-rose-600 px-3 py-1.5 text-sm text-white hover:bg-rose-500"
-                      >
-                        Deactivate
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

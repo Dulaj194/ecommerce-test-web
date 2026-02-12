@@ -15,7 +15,7 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "Nova Mart",
+  title: "LuminousOne",
   description: "Next.js + Spring Boot e-commerce system",
 };
 

@@ -43,6 +43,8 @@ You can override with environment variables:
 - `REDIS_HOST`
 - `REDIS_PORT`
 - `REDIS_PASSWORD`
+- `CACHE_TYPE` (`simple` for local, `redis` for production)
+- `SESSION_STORE_TYPE` (`none` for JWT stateless, `redis` if you enable redis sessions)
 - `STORAGE_PROVIDER` (`local` or `s3`)
 - `AWS_REGION`
 - `AWS_S3_BUCKET`

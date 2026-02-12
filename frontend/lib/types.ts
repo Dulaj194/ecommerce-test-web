@@ -32,6 +32,7 @@ export type Product = {
   price: number;
   stock: number;
   imageUrl: string;
+  imageUrls: string[];
   active: boolean;
 };
 

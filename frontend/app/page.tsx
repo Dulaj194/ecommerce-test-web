@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { MainNav } from "@/components/MainNav";
@@ -12,7 +11,6 @@ import { usePolling } from "@/lib/usePolling";
 import type { Banner, PagedResponse, Product } from "@/lib/types";
 
 export default function HomePage() {
-  const router = useRouter();
   const hydrated = useHydrated();
   const [menuOpen, setMenuOpen] = useState(false);
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -92,20 +90,31 @@ export default function HomePage() {
   const heroBanner = banners[activeSlide];
   const heroImage = resolveImageUrl(heroBanner?.imageUrl);
 
-  const closeMenuAndNavigateHome = () => {
-    setMenuOpen(false);
-    router.push("/");
-  };
-
   return (
     <main className="min-h-screen bg-slate-100 pb-10">
       <button
         type="button"
-        aria-label="Open full menu"
-        onClick={() => setMenuOpen(true)}
-        className="fixed left-4 top-4 z-50 rounded-md bg-slate-950 px-3 py-1 text-2xl font-bold text-white shadow-lg"
+        aria-label={menuOpen ? "Close full menu" : "Open full menu"}
+        onClick={() => setMenuOpen((open) => !open)}
+        className={`fixed left-4 top-4 z-50 inline-flex h-12 w-12 items-center justify-center rounded-xl border shadow-lg transition ${
+          menuOpen
+            ? "border-slate-300 bg-white text-slate-900 hover:bg-slate-50"
+            : "border-slate-200 bg-white text-slate-900 hover:bg-slate-100"
+        }`}
       >
-        =
+        <span aria-hidden="true">
+          {menuOpen ? (
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
+              <path d="M6 6l12 12" />
+              <path d="M18 6L6 18" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+              <path d="M4 9h16" />
+              <path d="M4 15h16" />
+            </svg>
+          )}
+        </span>
       </button>
 
       <div className="mx-auto max-w-6xl px-4 pt-6">
@@ -141,7 +150,7 @@ export default function HomePage() {
             {featuredProducts.map((product) => (
               <article key={product.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <img
-                  src={resolveImageUrl(product.imageUrl)}
+                  src={resolveImageUrl(product.imageUrls?.[0] ?? product.imageUrl)}
                   alt={product.name}
                   className="h-44 w-full object-cover"
                 />
@@ -151,7 +160,7 @@ export default function HomePage() {
                   <div className="flex items-center justify-between">
                     <span className="text-lg font-semibold text-teal-700">${Number(product.price).toFixed(2)}</span>
                     <Link
-                      href="/products"
+                      href={`/products/${product.id}`}
                       className="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-600"
                     >
                       View
@@ -168,17 +177,9 @@ export default function HomePage() {
         <div className="fixed inset-0 z-40 bg-slate-900/45">
           <div className="grid h-full w-full grid-cols-1 bg-white md:grid-cols-4">
             <section className="relative p-8 md:col-span-3">
-              <button
-                type="button"
-                onClick={closeMenuAndNavigateHome}
-                className="absolute right-6 top-6 rounded-full border border-slate-300 px-3 py-1 text-xl text-slate-700 hover:bg-slate-100"
-              >
-                X
-              </button>
-
               <h2 className="mt-10 text-3xl font-semibold text-slate-900">Full Menu</h2>
               <p className="mt-2 max-w-xl text-slate-600">
-                This panel opens from the top-left &quot;=&quot; button. Use X to cancel and navigate back to home.
+                This panel opens from the top-left menu button. Click the same button to cancel and close the menu.
               </p>
 
               <nav className="mt-10 grid max-w-2xl gap-3 text-lg">
