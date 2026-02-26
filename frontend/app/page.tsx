@@ -5,14 +5,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { MainNav } from "@/components/MainNav";
 import { apiFetch, resolveImageUrl } from "@/lib/api";
-import { getSession } from "@/lib/session";
-import { useHydrated } from "@/lib/useHydrated";
 import { usePolling } from "@/lib/usePolling";
 import type { Banner, PagedResponse, Product } from "@/lib/types";
 
 export default function HomePage() {
-  const hydrated = useHydrated();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [activeSlide, setActiveSlide] = useState(0);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
@@ -72,51 +68,13 @@ export default function HomePage() {
     return () => window.clearInterval(interval);
   }, [banners.length]);
 
-  useEffect(() => {
-    document.body.style.overflow = menuOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [menuOpen]);
 
-  const session = hydrated ? getSession() : null;
-
-  const menuCta = session
-    ? session.role === "ROLE_ADMIN"
-      ? { href: "/admin/dashboard", label: "Admin Dashboard" }
-      : { href: "/products", label: "Continue Shopping" }
-    : { href: "/login", label: "Login" };
 
   const heroBanner = banners[activeSlide];
   const heroImage = resolveImageUrl(heroBanner?.imageUrl);
 
   return (
     <main className="min-h-screen bg-slate-100 pb-10">
-      <button
-        type="button"
-        aria-label={menuOpen ? "Close full menu" : "Open full menu"}
-        onClick={() => setMenuOpen((open) => !open)}
-        className={`fixed left-4 top-4 z-50 inline-flex h-12 w-12 items-center justify-center rounded-xl border shadow-lg transition ${
-          menuOpen
-            ? "border-slate-300 bg-white text-slate-900 hover:bg-slate-50"
-            : "border-slate-200 bg-white text-slate-900 hover:bg-slate-100"
-        }`}
-      >
-        <span aria-hidden="true">
-          {menuOpen ? (
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
-              <path d="M6 6l12 12" />
-              <path d="M18 6L6 18" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-              <path d="M4 9h16" />
-              <path d="M4 15h16" />
-            </svg>
-          )}
-        </span>
-      </button>
-
       <div className="mx-auto max-w-6xl px-4 pt-6">
         <MainNav />
 
@@ -173,56 +131,6 @@ export default function HomePage() {
         </section>
       </div>
 
-      {menuOpen && (
-        <div className="fixed inset-0 z-40 bg-slate-900/45">
-          <div className="grid h-full w-full grid-cols-1 bg-white md:grid-cols-4">
-            <section className="relative p-8 md:col-span-3">
-              <h2 className="mt-10 text-3xl font-semibold text-slate-900">Full Menu</h2>
-              <p className="mt-2 max-w-xl text-slate-600">
-                This panel opens from the top-left menu button. Click the same button to cancel and close the menu.
-              </p>
-
-              <nav className="mt-10 grid max-w-2xl gap-3 text-lg">
-                <MenuLink href="/" label="Home" onNavigate={() => setMenuOpen(false)} />
-                <MenuLink href="/products" label="Products" onNavigate={() => setMenuOpen(false)} />
-                <MenuLink href="/cart" label="Cart" onNavigate={() => setMenuOpen(false)} />
-                <MenuLink href="/orders" label="Order History" onNavigate={() => setMenuOpen(false)} />
-                <MenuLink href="/admin/dashboard" label="Admin Dashboard" onNavigate={() => setMenuOpen(false)} />
-              </nav>
-            </section>
-
-            <aside className="flex items-center justify-center border-l border-slate-200 bg-slate-50 p-8 md:col-span-1">
-              <Link
-                href={menuCta.href}
-                onClick={() => setMenuOpen(false)}
-                className="rounded-lg bg-slate-950 px-8 py-3 text-lg font-semibold text-white shadow hover:bg-slate-800"
-              >
-                {menuCta.label}
-              </Link>
-            </aside>
-          </div>
-        </div>
-      )}
     </main>
-  );
-}
-
-function MenuLink({
-  href,
-  label,
-  onNavigate,
-}: {
-  href: string;
-  label: string;
-  onNavigate: () => void;
-}) {
-  return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      className="rounded-xl border border-slate-200 bg-white px-4 py-3 font-medium text-slate-800 hover:border-teal-500 hover:text-teal-700"
-    >
-      {label}
-    </Link>
   );
 }
