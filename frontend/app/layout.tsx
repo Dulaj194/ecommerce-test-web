@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Lora, Poppins } from "next/font/google";
 import "./globals.css";
+import { AnnouncementBar } from "@/components/AnnouncementBar";
 import { PageLoader } from "@/components/PageLoader";
 
 const poppins = Poppins({
@@ -28,6 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${poppins.variable} ${lora.variable} antialiased`}>
+        <AnnouncementBar />
         <PageLoader />
         {children}
       </body>
