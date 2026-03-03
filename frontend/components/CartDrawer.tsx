@@ -21,7 +21,11 @@ export function CartDrawer({ open, onClose }: Props) {
   const [error, setError]                   = useState<string | null>(null);
   const [checkingOut, setCheckingOut]       = useState(false);
   const [shippingAddress, setShippingAddr]  = useState("221B Baker Street, London");
+  const [session, setSession]               = useState<ReturnType<typeof getSession> | null>(null);
   const drawerRef                           = useRef<HTMLDivElement>(null);
+
+  // Resolve session only on the client to avoid SSR/client hydration mismatch
+  useEffect(() => { setSession(getSession()); }, []);
 
   /* ── load cart when opened ── */
   const load = useCallback(async () => {
@@ -102,8 +106,6 @@ export function CartDrawer({ open, onClose }: Props) {
       setCheckingOut(false);
     }
   };
-
-  const session = typeof window !== "undefined" ? getSession() : null;
 
   return (
     <>
